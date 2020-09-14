@@ -1,0 +1,86 @@
+﻿using KMeansGUI;
+using System;
+using System.Collections.Generic;
+using System.Threading;
+
+namespace KMeansProject
+{
+    public delegate void OnUpdateProgress(object sender, KMeansEventArgs eventArgs);
+    public class KMeans
+    {
+        private IDistance _distance;
+        private int _k;
+
+        public event OnUpdateProgress UpdateProgress;
+        protected virtual void OnUpdateProgress(KMeansEventArgs eventArgs)  /* Şekillerin haraket süresini ayarladık.    */
+        {
+            if (UpdateProgress != null)
+                UpdateProgress(this, eventArgs);
+            Thread.Sleep(800);
+        }
+
+        public KMeans(int k, IDistance distance)      /*  En iyi ayrımı yapacak k sayısı önceden bilinmez bu yüzden veriden hesaplanması gerekir. */
+ 
+                                                                  
+        {
+            _k = k;
+            _distance = distance;
+        }
+
+        public Centroid[] Run(double[][] dataSet)           /* Veriler en yakın sınıf merkezine atanır daha sonra merkezleri yeniden hesaplamır.
+                                                           Son olarak veriler en yakın olduğu merkeze tekrar atanır. */
+        {
+            List<Centroid> centroidList = new List<Centroid>();
+
+            for (int i=0;i<_k;i++)
+            {
+                Centroid centroid = new Centroid(dataSet,Misc.centroidColors[i]);
+                centroidList.Add(centroid);
+            }
+
+            OnUpdateProgress(new KMeansEventArgs(centroidList,dataSet));
+
+            while (true)     /*Verilen datayı önceden tanımladığımız  k gruba ayırmıştık. Sınıf merkezleri k değerlerini belirler. 
+                                   Verileri en yakın sınıf merkezlerine atarız, Her bir sınıfa atanmış verilerin 
+                              ortalamasını hesaplayıp sınıf merkezlerini, k tane, hesaplanmış ortalama değerlerine iletiriz.   */
+            {
+                foreach (Centroid centroid in centroidList)
+                    centroid.Reset();
+
+                for (int i = 0; i < dataSet.GetLength(0); i++)
+                {
+                    double[] point = dataSet[i];
+                    int closestIndex = -1;
+                    double minDistance = Double.MaxValue;
+                    for (int k = 0; k < centroidList.Count; k++)
+                    {
+                        double distance = _distance.Run(centroidList[k].Array, point);
+                        if (distance < minDistance)
+                        {
+                            closestIndex = k;
+                            minDistance = distance;
+                        }
+                    }
+                    centroidList[closestIndex].addPoint(point);
+                }
+
+                foreach (Centroid centroid in centroidList)
+                    centroid.MoveCentroid();
+
+                OnUpdateProgress(new KMeansEventArgs(centroidList, null));
+
+                bool hasChanged = false;
+                foreach (Centroid centroid in centroidList)
+                    if (centroid.HasChanged())
+                    {
+                        hasChanged = true;
+                        break;
+                    }
+                if (!hasChanged)
+                    break;
+            }
+
+            return centroidList.ToArray();
+        }
+    }
+}
